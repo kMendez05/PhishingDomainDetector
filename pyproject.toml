@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.20.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "phishing-domain-detector"
+version = "0.1.0"
+description = "CLI tool that scans domains for phishing indicators (feeds + heuristics) and exports results."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Kevin Mendez" }]
+dependencies = [
+  "requests>=2.31.0",
+  "pandas>=1.5.3",
+  "rich>=13.7.0",
+]
+
+[project.scripts]
+phishdetector = "app:main"
+
+[tool.hatch.build.targets.wheel]
+# include your package files
+only-include = ["app.py", "utils"]

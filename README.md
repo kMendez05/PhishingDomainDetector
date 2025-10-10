@@ -1,5 +1,6 @@
 # Phishing Domain Detector
-![CI](https://github.com/<you>/PhishingDomainDetector/actions/workflows/ci.yml/badge.svg)
+
+![CI](https://github.com/kMendez05/PhishingDomainDetector/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
 

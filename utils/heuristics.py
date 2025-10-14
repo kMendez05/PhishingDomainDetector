@@ -1,5 +1,6 @@
 # utils/heuristics.py
 from typing import Tuple, List
+from utils.normalize import normalize_domain
 
 
 SUS_TLDS = [".tk", ".ml", ".ga", ".cf", ".gq", ".mov",".go",".xyz"]  # Commonly abused TLDs
@@ -96,6 +97,7 @@ def has_punycode_label(domain: str) -> Tuple[bool, str]:
     return False, ""
 
 def edit_distance(a: str, b: str) -> int:
+    """Levenshtein distance (case-insensitive)."""
     a, b = a.lower(), b.lower()
     dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
 
@@ -108,64 +110,77 @@ def edit_distance(a: str, b: str) -> int:
         for j in range(1, len(b) + 1):
             cost = 0 if a[i - 1] == b[j - 1] else 1
             dp[i][j] = min(
-                dp[i - 1][j] + 1,      # deletion
-                dp[i][j - 1] + 1,      # insertion
+                dp[i - 1][j] + 1,        # deletion
+                dp[i][j - 1] + 1,        # insertion
                 dp[i - 1][j - 1] + cost  # substitution
             )
 
     return dp[len(a)][len(b)]
 
+def _map_digits_to_letters(s: str) -> str:
+    """Simple homoglyph map so 'g00gle' -> 'google'."""
+    return s.translate(str.maketrans({
+        "0": "o",
+        "1": "l",
+        "3": "e",
+        "4": "a",
+        "5": "s",
+        "7": "t",
+        "$": "s",
+        "@": "a",
+    }))
+
 def looks_like_typosquat(domain: str) -> Tuple[bool, str]:
     # High-value brands often impersonated in phishing
     KNOWN_BRANDS = {
         # Finance & Payments
-        "paypal",
-        "chase",
-        "bankofamerica",
-        "wellsfargo",
-        "citibank",
-        "americanexpress",
-        "amex",
+        "paypal", "chase", "bankofamerica", "wellsfargo", "citibank",
+        "americanexpress", "amex",
         # Tech Giants
-        "google",
-        "gmail",
-        "youtube",
-        "facebook",
-        "instagram",
-        "whatsapp",
-        "twitter",
-        #"x",  # rebrand of twitter
-        "apple",
-        "icloud",
-        "microsoft",
-        "outlook",
-        "office365",
+        "google", "gmail", "youtube", "facebook", "instagram", "whatsapp",
+        "twitter", "apple", "icloud", "microsoft", "outlook", "office365",
         # Shopping / Retail
-        "amazon",
-        "ebay",
-        "walmart",
-        "target",
+        "amazon", "ebay", "walmart", "target",
         # Extras (media / productivity)
-        "netflix",
-        "linkedin",
-        "dropbox",
-        "adobe",
+        "netflix", "linkedin", "dropbox", "adobe",
     }
-    d = domain.strip().strip(".").lower()
-    parts = d.strip().split(".")
+
+    # Normalize once
+    nd = normalize_domain(domain)
+    parts = [p for p in nd.split(".") if p]
+    if len(parts) < 2:
+        return False, ""
+
     sld = parts[-2]
+
+    # If it's EXACTLY a brand as-is, don't flag as typosquat.
+    if sld in KNOWN_BRANDS:
+        return False, ""
+
+    # Simple win: if digit-mapped SLD becomes a brand, call it typosquat.
+    mapped = _map_digits_to_letters(sld)
+    if mapped != sld and mapped in KNOWN_BRANDS:
+        return True, f"Typosquat: SLD '{sld}' -> '{mapped}' via digit homoglyphs"
+
+    # Otherwise use your existing distance rule:
+    bait_hit, _ = has_baitword_in_subdomain(nd)
     for brand in KNOWN_BRANDS:
-        if edit_distance(sld, brand) ==1:
-            return True, f"Has Typosquat: {brand} -> {sld}"
+        dist = edit_distance(sld, brand)
+        if dist == 1 or (dist == 2 and bait_hit):
+            detail = " (baitword)" if (dist == 2 and bait_hit) else ""
+            return True, f"Typosquat: SLD '{sld}' ~ '{brand}' (dist={dist}){detail}"
+
     return False, ""
 
 
-    
-
-    
 
 
 def run_heuristics(domain: str) -> Tuple[bool, List[str], int]:
+    """
+    Return (is_suspicious, reasons, score)
+    """
+    domain = normalize_domain(domain)  # normalize once
+
     suspicious = False
     reasons: List[str] = []
     score = 0
@@ -174,37 +189,36 @@ def run_heuristics(domain: str) -> Tuple[bool, List[str], int]:
     if hit:
         suspicious = True
         reasons.append(reason)
-        score = score + 40
-    
+        score += 40
+
     hit, reason = has_suspicious_TLD(domain)
     if hit:
         suspicious = True
         reasons.append(reason)
-        score = score + 20
+        score += 20
 
     hit, reason = too_many_subdomains(domain)
     if hit:
         suspicious = True
         reasons.append(reason)
-        score = score + 15
+        score += 15
 
     hit, reason = has_baitword_in_subdomain(domain)
     if hit:
         suspicious = True
         reasons.append(reason)
-        score = score + 25
+        score += 25
 
     hit, reason = has_punycode_label(domain)
     if hit:
         suspicious = True
         reasons.append(reason)
-        score = score + 30
-    
+        score += 30
+
     hit, reason = looks_like_typosquat(domain)
     if hit:
         suspicious = True
         reasons.append(reason)
-        score = score + 50
-        
+        score += 50 
 
     return suspicious, reasons, score

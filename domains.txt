@@ -1,1 +1,12 @@
-login.payp4l-secure.update.xn--example-9za.co
+# Safe baseline
+example.org
+microsoft.com
+
+# Homoglyph + baitword
+login.paypa1-secure.com
+
+# Typosquat via digit mapping
+g00gle.com
+
+# Punycode label
+xn--login-9za.example.com
